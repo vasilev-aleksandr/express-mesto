@@ -1,48 +1,63 @@
 const User = require('../models/user');
+const BadRequestError = require('../errors/BadRequestError');
+const NotFoundError = require('../errors/NotFoundError');
 
-module.exports.getUsers = (req, res) => {
+module.exports.getUsers = (res, next) => {
   User.find({})
-  .then(users => res.send({ data: users }))
-  .catch((err) =>  res.status(500).send({ message: `Произошла ошибка при загрузке пользователей: ${err}`})
-)};
-
-module.exports.getUser = (req, res) => {
-  User.findById(req.params.userId)
-  .then((user) => {
-    if (user === null) {
-      return res.status(404).send({ message: `Пользователь по указанному _id не найден: ${req.params.userId}` });
-    }
-    return res.send({ data: user });
-  })
-  .catch(() => {
-    return res.status(500).send({ message: 'Произошла ошибка' });
-  });
+    .then((users) => res.send({ data: users }))
+    .catch(next);
 };
 
+module.exports.getUser = (req, res, next) => {
+  User.findById(req.params.userId)
+    .orFail()
+    .catch(() => {
+      throw new NotFoundError({ message: 'Нет пользователя с таким id' });
+    })
+    .then((user) => res.send({ data: user }))
+    .catch(next);
+};
 
-module.exports.addUser = (req, res) => {
+module.exports.addUser = (req, res, next) => {
   const { name, about, avatar } = req.body;
   User.create({ name, about, avatar })
-  .then(user => res.send({ data: user }))
-  .catch(() => res.status(500).send({ message: 'Произошла ошибка' }));
+    .catch((err) => {
+      throw new BadRequestError({ message: `Указаны некорректные данные при создании пользователя: ${err.message}` });
+    })
+    .then((user) => res.send({ data: user }))
+    .catch(next);
 };
 
-module.exports.updateUser = (req, res) => {
-  const { name, about, avatar  } = req.body;
+module.exports.updateUser = (req, res, next) => {
+  const { name, about, avatar } = req.body;
   User.findByIdAndUpdate(
     req.user._id,
     { name, about, avatar },
-    { new: true }
-    )
-  .catch(() => res.status(500).send({ message: 'Произошла ошибка' }));
+    { new: true },
+    { runValidators: true },
+  )
+    .then((data) => {
+      if (!data) {
+        throw new NotFoundError('Нет пользователя с таким id');
+      }
+      res.send(data);
+    })
+    .catch(next);
 };
 
-module.exports.updateAvatar = (req, res) => {
-  const { avatar  } = req.body;
+module.exports.updateAvatar = (req, res, next) => {
+  const { avatar } = req.body;
   User.findByIdAndUpdate(
     req.user._id,
     { avatar },
-    { new: true }
-    )
-  .catch(() => res.status(500).send({ message: 'Произошла ошибка' }));
+    { new: true },
+    { runValidators: true },
+  )
+    .then((data) => {
+      if (!data) {
+        throw new NotFoundError('Нет пользователя с таким id');
+      }
+      res.send(data);
+    })
+    .catch(next);
 };
