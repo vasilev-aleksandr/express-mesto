@@ -1,63 +1,75 @@
 const User = require('../models/user');
-const BadRequestError = require('../errors/BadRequestError');
-const NotFoundError = require('../errors/NotFoundError');
 
-module.exports.getUsers = (res, next) => {
+module.exports.getUsers = (req, res) => {
   User.find({})
     .then((users) => res.send({ data: users }))
-    .catch(next);
+    .catch(() => res.status(500).send({ message: 'Произошла ошибка' }));
 };
 
-module.exports.getUser = (req, res, next) => {
+module.exports.getUser = (req, res) => {
   User.findById(req.params.userId)
-    .orFail()
-    .catch(() => {
-      throw new NotFoundError({ message: 'Нет пользователя с таким id' });
+    .then((user) => {
+      res.send({ message: user });
     })
-    .then((user) => res.send({ data: user }))
-    .catch(next);
-};
-
-module.exports.addUser = (req, res, next) => {
-  const { name, about, avatar } = req.body;
-  User.create({ name, about, avatar })
     .catch((err) => {
-      throw new BadRequestError({ message: `Указаны некорректные данные при создании пользователя: ${err.message}` });
-    })
-    .then((user) => res.send({ data: user }))
-    .catch(next);
+      if (err.name === 'CastError') {
+        res.status(404).send({
+          message: `Пользователь с id: ${req.params.userId} не найден`,
+        });
+        return;
+      }
+      res.status(500).send({ message: err.message });
+    });
 };
 
-module.exports.updateUser = (req, res, next) => {
+module.exports.addUser = (req, res) => {
   const { name, about, avatar } = req.body;
-  User.findByIdAndUpdate(
-    req.user._id,
-    { name, about, avatar },
-    { new: true },
-    { runValidators: true },
-  )
-    .then((data) => {
-      if (!data) {
-        throw new NotFoundError('Нет пользователя с таким id');
+
+  User.create({ name, about, avatar })
+    .then((user) => res.status(201).send({ data: user }))
+    .catch((err) => {
+      if (err.name === 'ValidationError') {
+        return res.status(400).send({ message: `${Object.values(err.errors).map((e) => e.message).join(', ')}` });
       }
-      res.send(data);
-    })
-    .catch(next);
+      return res.status(500).send({ message: err.message });
+    });
 };
 
-module.exports.updateAvatar = (req, res, next) => {
-  const { avatar } = req.body;
+module.exports.updateUser = (req, res) => {
+  const { name, about } = req.body;
   User.findByIdAndUpdate(
     req.user._id,
-    { avatar },
-    { new: true },
-    { runValidators: true },
+    { name, about },
+    {
+      new: true,
+      runValidators: true,
+    },
   )
-    .then((data) => {
-      if (!data) {
-        throw new NotFoundError('Нет пользователя с таким id');
+    .then((user) => res.send({ data: user }))
+    .catch((err) => {
+      if (err.name === 'ValidationError') {
+        res.status(400).send({ message: err.message });
+        return;
       }
-      res.send(data);
-    })
-    .catch(next);
+      res.status(500).send({ message: 'Произошла ошибка' });
+    });
+};
+
+module.exports.updateAvatar = (req, res) => {
+  User.findByIdAndUpdate(
+    req.user._id,
+    { avatar: req.body.avatar },
+    {
+      new: true,
+      runValidators: true,
+    },
+  )
+    .then((user) => res.send({ data: user }))
+    .catch((err) => {
+      if (err.name === 'ValidationError') {
+        res.status(400).send({ message: err.message });
+        return;
+      }
+      res.status(500).send({ message: 'Произошла ошибка' });
+    });
 };
