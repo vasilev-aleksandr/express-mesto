@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser');
 const { errors } = require('celebrate');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const cards = require('./routes/cards');
 const users = require('./routes/users');
 const { login, addUser } = require('./controllers/users');
@@ -20,6 +21,14 @@ mongoose.connect('mongodb://localhost:27017/mestodb', {
   useFindAndModify: false,
 });
 app.use(helmet());
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Слишком много запросов с вашего IP, попробуйте повторить попытку позже',
+});
+
+app.use(limiter);
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
